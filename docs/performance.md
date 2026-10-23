@@ -6,7 +6,7 @@ Isaac Sim no se ejecutó en esta máquina, así que no hay una medición de FPS,
 
 ## Límite externo
 
-La [documentación de Isaac Sim 5.0](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/installation/requirements.html) pide como mínimo **32 GiB de RAM** y **16 GiB de VRAM**. El runtime de Kit, RTX y PhysX vive fuera de este repositorio. Recortar OmniLRS no baja ese piso: en un equipo de 6 u 8 GiB el sistema operativo ya ocupa una parte, y el proceso de Isaac Sim por sí solo supera lo que queda.
+La [documentación de Isaac Sim 5.0](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/installation/requirements.html) pedía como mínimo **32 GiB de RAM** y **16 GiB de VRAM**. El runtime que usa este repositorio ahora es Isaac Sim 6.2; Kit, RTX y PhysX siguen viviendo fuera de este repositorio. Recortar OmniLRS no baja ese piso: en un equipo de 6 u 8 GiB el sistema operativo ya ocupa una parte, y el proceso de Isaac Sim por sí solo supera lo que queda.
 
 Hay que separar tres cifras:
 
@@ -75,9 +75,9 @@ En un equipo con 24 GiB o más y varios GiB libres no se aplica ninguno de esos 
 
 El log `omnilrs.memory` indica el perfil, la RAM de sistema y cada tope aplicado. Después de construir la escena registra working set y commit del proceso junto a la RAM disponible del sistema.
 
-## Fase 2: arranque de Isaac Sim 5.0
+## Fase 2: arranque de Isaac Sim 6.2
 
-Isaac Sim 5.0 en modo standalone ya abre `isaacsim.exp.base.python.kit`. Ese kit es el de Python. `isaacsim.exp.full.kit` es el del editor y carga más extensiones. OmniLRS deja `experience` vacío cuando ese archivo base no está en `EXP_PATH`, que es el mismo resultado que el constructor de `SimulationApp`. Si `EXP_PATH` apunta al kit base y el archivo existe, se pasa esa ruta. La ruta automática nunca elige el kit full. Un `OMNILRS_EXPERIENCE` explícito sí se respeta.
+Isaac Sim 6.2 en modo standalone sigue abriendo `isaacsim.exp.base.python.kit` cuando `experience` va vacío. Ese kit es el de Python. `isaacsim.exp.full.kit` es el del editor y carga más extensiones. OmniLRS deja `experience` vacío cuando ese archivo base no está en `EXP_PATH`, que es el mismo resultado que el constructor de `SimulationApp`. Si `EXP_PATH` apunta al kit base y el archivo existe, se pasa esa ruta. La ruta automática nunca elige el kit full. Un `OMNILRS_EXPERIENCE` explícito sí se respeta.
 
 En un equipo con **menos de 12 GiB instalados**, y con el perfil `auto` o `low`, el arranque pasa a headless, oculta la UI y activa `disable_viewport_updates`. Esa bandera, documentada por NVIDIA, evita refrescar el viewport por defecto mientras la sesión ya es headless. Las cámaras y los sensores RTX siguen creando sus propios render products. El bucle de ejecución de ROS 2, Yamcs y SDG sigue en `world.step(render=True)`. Zenoh sigue bombeando `simulation_app.update()`. `OMNILRS_KEEP_WINDOW=1` conserva la ventana en ese equipo. `OMNILRS_MEMORY_PROFILE=high` u `off` también la conservan, aunque el equipo tenga poca RAM instalada. SDG no entra en ese camino: sigue con viewport, con el cierre de Replicator y con los 100 frames renderizados de calentamiento, porque la generación de imágenes depende de ese render.
 
@@ -129,4 +129,26 @@ Con `OMNILRS_MEMORY_PROFILE=auto` y la GPU más pequeña en 9 GiB o menos:
 
 `OMNILRS_MEMORY_PROFILE=high` deja las 32 muestras. El clipmap híbrido sigue aplicándose por debajo de 12 GiB de VRAM.
 
-Esto no se ha medido en una Blackwell. La GPU de la máquina donde está abierto el repo es una GeForce RTX 2060 SUPER, también de 8192 MiB, y Kit no se ha lanzado. El ahorro de muestras, de la ventana y del segundo framebuffer de profundidad es **estimado**. El heap de RTX que reserva Isaac Sim 5.0 sigue teniendo un mínimo publicado de 16 GiB de VRAM. Caber el viewport en 8 GiB no demuestra que el proceso de Kit arranque y se quede estable en esa Blackwell.
+Esto no se ha medido en una Blackwell. La GPU de la máquina donde está abierto el repo es una GeForce RTX 2060 SUPER, también de 8192 MiB, y Kit no se ha lanzado. El ahorro de muestras, de la ventana y del segundo framebuffer de profundidad es **estimado**. El mínimo de VRAM publicado por Isaac Sim sigue siendo un límite del runtime, no una cifra medida por OmniLRS. Caber el viewport en 8 GiB no demuestra que el proceso de Kit arranque y se quede estable en esa Blackwell.
+
+## Isaac Sim 6.2, Warp y el fallo de `cuDeviceGetUuid`
+
+En la máquina de 64 GiB y 8 GiB de VRAM, Isaac Sim 6.2 a solas, en headless, corre bien. El contenedor anterior partía de `nvcr.io/nvidia/isaac-sim:5.0.0` y llevaba Warp 1.7.1. Con un driver de la rama 580 (CUDA 13), el mismo que acompaña a esa instalación 6.2, Warp 1.7.1 falla al buscar `cuDeviceGetUuid` y Kit muere con `Segmentation fault`:
+
+```text
+Warp CUDA error: Failed to get driver entry point 'cuDeviceGetUuid'
+CUDA error 36: API call is not supported in the installed CUDA driver
+```
+
+Ese fallo está descrito en [NVIDIA/warp#851](https://github.com/NVIDIA/warp/issues/851) y en [isaac-sim/IsaacSim#229](https://github.com/isaac-sim/IsaacSim/issues/229). Warp 1.8.1 lo corrige. Isaac Sim 6.2 incluye Warp 1.17.0. El `Dockerfile` usa la imagen oficial `nvcr.io/nvidia/isaac-sim:6.2.0` y no reinstala Warp ni fija NumPy. `ROS_DISTRO` no se exporta: el lanzador de la 6.2 usa las librerías ROS que vienen dentro de esa imagen.
+
+Las APIs que OmniLRS ya llama (`SimulationApp`, `World`, `Camera`, `PhysicsContext`, `SingleArticulation`) siguen publicadas en 6.2, marcadas como obsoletas desde la 6.0. Se mantienen porque siguen siendo el ciclo de vida del simulador. La lectura del IMU ya copia los campos al momento; en 6.2 `get_sensor_reading()` devuelve una instantánea propia.
+
+Esto no se ha vuelto a ejecutar. En la máquina donde está abierto el repo no hay Isaac Sim, y no se ha construido la imagen 6.2. El arranque headless, la ausencia de `cuDeviceGetUuid` y el uso de RAM y VRAM quedan pendientes de la máquina donde Isaac Sim 6.2 headless ya funciona. La prueba que lo comprueba es `test/test_isaac62_headless.py` con `OMNILRS_RUN_ISAAC=1`.
+
+```bash
+docker login nvcr.io
+# usuario: $oauthtoken
+bash omnilrs.docker/build_docker.sh
+bash omnilrs.docker/run_docker.sh
+```

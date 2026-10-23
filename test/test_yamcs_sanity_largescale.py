@@ -47,6 +47,9 @@ FATAL_MARKERS = [
     "is not available in environment",
     "carb.crashreporter-breakpad",
     "Simulation exited before being fully initialized",
+    "cuDeviceGetUuid",
+    "CUDA error 36",
+    "Segmentation fault",
 ]
 
 

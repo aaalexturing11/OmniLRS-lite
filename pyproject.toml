@@ -2,7 +2,7 @@
 name = "OmniLRS"
 version = "3.0.0"
 description = "A IsaacSim based lunar simulator for rover locomotion."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["lunar", "simulator", "rover", "locomotion", "IsaacSim"]
 authors = [
     { name = "Antoine Richard", email = "antoine.richard@uni.lu" },
@@ -12,7 +12,6 @@ authors = [
 dependencies = [
     "skyfield",
     "zfpy",
-    "warp-lang",
     "numba",
     "gdown",
     "gdal",
@@ -35,6 +34,11 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.ruff.lint.isort]
 # Submodule is absent in the CI lint checkout; pin it so import order matches locally.
 known-third-party = ["WorldBuilders"]
+
+[project.optional-dependencies]
+# Isaac Sim 6.2 already provides Warp 1.17. Installing warp-lang into that
+# environment replaces it. This extra is only for a machine without Isaac.
+dev-warp = ["warp-lang>=1.8.1"]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]

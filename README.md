@@ -69,7 +69,26 @@ Mission Operations Update:
 
 ## Installation
 
-Follow the instruction on the Wiki: we strongly recommend following the [docker installation](https://github.com/OmniLRS/OmniLRS/wiki/Installation#docker-installation) steps.
+Isaac Sim 6.2 is the supported runtime. The container is the official image `nvcr.io/nvidia/isaac-sim:6.2.0`. It already includes Warp 1.17, which is the build that runs on the driver where Isaac Sim 5.0's Warp 1.7.1 aborts in `cuDeviceGetUuid`.
+
+```bash
+docker login nvcr.io
+# username: $oauthtoken
+bash omnilrs.docker/build_docker.sh
+bash omnilrs.docker/run_docker.sh
+```
+
+With no arguments the run script starts headless Lunalab (`environment=lunalab mode=ROS2 rendering.renderer.headless=true`) and `OMNILRS_MEMORY_PROFILE=auto`. A shell inside the same image is `bash omnilrs.docker/run_docker.sh bash`. `ROS_DISTRO` is left unset so Isaac Sim loads the ROS libraries shipped in the image. The `ros2` command-line tools are installed separately; inside the container, `omnilrs-ros` sources them and is meant for a second shell, not for the simulator process.
+
+A workstation install uses the same packages through its own Python:
+
+```bash
+export ISAACSIM_ROOT=/path/to/isaac-sim
+./scripts/install_native.sh
+"$ISAACSIM_ROOT/python.sh" run.py environment=lunalab mode=ROS2 rendering.renderer.headless=true
+```
+
+Further workstation notes stay on the [Wiki](https://github.com/OmniLRS/OmniLRS/wiki/Installation#docker-installation).
 
 Then Follow the [Getting Started steps](https://github.com/OmniLRS/OmniLRS/wiki/getting_started) to run your first OmniLRS simulations!
 

@@ -33,6 +33,9 @@ FATAL_MARKERS = [
     "ModuleNotFoundError",
     "ROS2 Bridge startup failed",
     "carb.crashreporter-breakpad",
+    "cuDeviceGetUuid",
+    "CUDA error 36",
+    "Segmentation fault",
 ]
 
 

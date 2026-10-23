@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Runtime is Isaac Sim 6.2. The Docker image is `nvcr.io/nvidia/isaac-sim:6.2.0` and the pixi package is `isaacsim[all,extscache,ros2]==6.2.0.0` on Python 3.12. Warp and NumPy stay at the versions Isaac Sim ships. `ROS_DISTRO` is left unset so the bundled ROS libraries are used.
 - LargeScale static assets no longer implicitly add the terrain height to their z; set `height_above_terrain_override` instead.
 - LargeScale robot spawn uses the configured pose in both ROS2 and Yamcs modes (ROS2 previously forced `(0, 0)`); the `largescale*` configs set `height_above_terrain_override: 0.5` to keep the previous spawn height.
 - The Lunaryard workshop configs and `robot=pragyaan` now place the rover, lander, rock and monitoring camera relative to the terrain height.

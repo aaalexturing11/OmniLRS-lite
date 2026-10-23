@@ -1,30 +1,34 @@
 #!/bin/bash
+# Extra Python packages for an Isaac Sim 6.2 install that is already on disk.
+# The simulator's own Warp, NumPy and CUDA wheels stay as Isaac shipped them.
 
-# Pulls WorldBuilder
-echo "Pulling WorldBuilder"
+set -euo pipefail
+
 git submodule init
 git submodule update
 
-# Install GDAL
-echo "Installing GDAL"
-sudo apt install python3 python3-dev python3-pip
-sudo apt-get install gdal-bin libgdal-dev
-version=$(gdal-config --version)
-
-# Install Python packages for Isaac Sim
-echo "Installing Python packages for Isaac Sim"
-if [[ -e  ~/.local/share/ov/pkg/isaac_sim-2023.1.1/python.sh]]
-then
-    ~/.local/share/ov/pkg/isaac_sim-2023.1.1/python.sh -m pip install opencv-python omegaconf hydra-core skyfield gdal==$version
-    ~/.local/share/ov/pkg/isaac_sim-2023.1.1/python.sh -m pip install zfpy numba
-elif [[ -e ~/.local/share/ov/pkg/isaac-sim-2023.1.1/python.sh]]
-then
-    ~/.local/share/ov/pkg/isaac-sim-2023.1.1/python.sh -m pip install opencv-python omegaconf hydra-core skyfield gdal==$version
-    ~/.local/share/ov/pkg/isaac-sim-2023.1.1/python.sh -m pip install zfpy numba
+if [ -n "${ISAACSIM_ROOT:-}" ] && [ -x "${ISAACSIM_ROOT}/python.sh" ]; then
+    ISAAC_PY="${ISAACSIM_ROOT}/python.sh"
+elif [ -x /isaac-sim/python.sh ]; then
+    ISAAC_PY=/isaac-sim/python.sh
 else
-    echo "Could not find Isaac Sim installation"
+    echo "Set ISAACSIM_ROOT to the Isaac Sim 6.2 directory that contains python.sh" >&2
+    exit 1
 fi
 
-echo "Installing Python packages for default Python"
-python3 -m pip --upgrade pip
-python3 -m pip install gdown black gdal==$version
+"${ISAAC_PY}" -m pip install --upgrade-strategy only-if-needed \
+    omegaconf \
+    hydra-core \
+    skyfield \
+    zfpy \
+    numba \
+    gdown \
+    em \
+    lark \
+    pandas \
+    av \
+    yamcs-client \
+    "eclipse-zenoh==1.10.1" \
+    "asyncio_for_robotics==1.5.0" \
+    msgspec
+"${ISAAC_PY}" -m pip install --upgrade-strategy only-if-needed --no-deps opencv-python

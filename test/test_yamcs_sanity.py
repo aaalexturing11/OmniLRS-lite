@@ -44,6 +44,9 @@ FATAL_MARKERS = [
     "ModuleNotFoundError",
     "is not available in environment",
     "carb.crashreporter-breakpad",
+    "cuDeviceGetUuid",
+    "CUDA error 36",
+    "Segmentation fault",
 ]
 
 

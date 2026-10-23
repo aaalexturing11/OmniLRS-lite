@@ -12,8 +12,8 @@ source test/venv/bin/activate
 pip install -r test/requirements.txt
 ```
 
-> **Note:** Python 3.11+ is required (`StrEnum` support). The venv is
-> created with `python3.11` explicitly (isaacsim 5.0). Adjust as needed.
+> **Note:** Python 3.11+ is required for these model tests (`StrEnum` support).
+> Isaac Sim 6.2 itself runs on Python 3.12.
 
 ## Run
 

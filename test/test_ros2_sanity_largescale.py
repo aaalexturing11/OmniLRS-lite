@@ -37,6 +37,9 @@ FATAL_MARKERS = [
     "ROS2 Bridge startup failed",
     "carb.crashreporter-breakpad",
     "Simulation exited before being fully initialized",
+    "cuDeviceGetUuid",
+    "CUDA error 36",
+    "Segmentation fault",
 ]
 
 

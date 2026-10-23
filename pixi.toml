@@ -22,7 +22,7 @@ index-strategy = "unsafe-best-match"
 
 # common deps, tasks, env variables in feature "core"
 [feature.core.dependencies]
-python = "3.11.*"
+python = "3.12.*"
 gdal = "*"
 libgdal = "*"
 libglu = "*"
@@ -46,13 +46,9 @@ OmniLRS = { path = ".", editable = true }
 OMNILRS_ROOT = "${PIXI_PROJECT_ROOT}"
 LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 
-# isaacsim-specific deps, tasks, env variables in feature "isaac"
-[feature.isaac.dependencies]
-packaging = "==23.0"
-numpy = "==1.26.0"
-
+# Isaac Sim 6.2 pins NumPy, Warp and CUDA. Do not add a NumPy or warp-lang pin here.
 [feature.isaac.pypi-dependencies]
-isaacsim = { version = "==5.0.0", extras = ["all", "extscache"] }
+isaacsim = { version = "==6.2.0.0", extras = ["all", "extscache", "ros2"] }
 
 [feature.isaac.activation.env]
 OMNI_KIT_ACCEPT_EULA = "YES"
@@ -65,7 +61,8 @@ isaacsim = "isaacsim"
 scripts = ["scripts/activate_isaac_ros.sh"]
 
 [feature.ros2.activation.env]
-ROS_DISTRO = "humble"
+# Leave ROS_DISTRO unset. Isaac Sim 6.2 then loads the ROS libraries shipped
+# with that install. Setting the variable alone disables that setup.
 RMW_IMPLEMENTATION = "rmw_fastrtps_cpp"
 
 [feature.ros2.tasks]

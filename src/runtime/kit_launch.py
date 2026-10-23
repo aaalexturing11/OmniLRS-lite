@@ -1,4 +1,4 @@
-"""Isaac Sim 5.0 launch policy. This module does not import Kit.
+"""Isaac Sim 6.2 launch policy. This module does not import Kit.
 
 Standalone ``SimulationApp`` already loads ``isaacsim.exp.base.python.kit``.
 Selecting ``isaacsim.exp.full.kit`` would pull in the editor and raise memory.
@@ -82,9 +82,9 @@ def installed_class(total_bytes: int) -> str:
 def resolve_experience(env: dict | None = None) -> str:
     """Absolute base-kit path when it exists on disk, otherwise an empty string.
 
-    An empty string keeps ``SimulationApp``'s own default, which for Isaac Sim
-    5.0 standalone is ``isaacsim.exp.base.python.kit``. ``EXP_PATH`` is never
-    resolved to ``isaacsim.exp.full.kit``.
+    An empty string keeps ``SimulationApp``'s own default. Isaac Sim 6.2 still
+    uses ``isaacsim.exp.base.python.kit`` for that default. ``EXP_PATH`` is
+    never resolved to ``isaacsim.exp.full.kit``.
     """
 
     env = os.environ if env is None else env
