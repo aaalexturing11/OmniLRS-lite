@@ -14,16 +14,17 @@ from isaacsim.core.utils.rotations import quat_to_rot_matrix
 
 # from src.robots.subsystems_manager import RobotSubsystemsManager
 from isaacsim.sensors.camera import Camera
-from isaacsim.sensors.physics import _sensor
+from isaacsim.sensors.experimental.physics import IMUSensor
 from pxr import Gf, Usd
 from scipy.spatial.transform import Rotation as R
 from WorldBuilders.pxr_utils import createObject, createXform
 
 from src.configurations.robot_confs import RobotManagerConf
 from src.configurations.simulator_mode_enum import SimulatorMode
-from src.environments.utils import resolve_position, transform_orientation_from_xyzw_into_xyz
+from src.environments.utils import resolve_position
 from src.robots.articulation_control import ArticulationControl
 from src.robots.articulation_telemetry import ArticulationTelemetry
+from src.robots.imu_reading import readings_from_imu
 from src.subsystems.robot_subsystems_handler import RobotSubsystemsHandler
 
 
@@ -266,7 +267,9 @@ class Robot:
         self._depth_cameras = {}
         self.dimensions = dimensions
         self.turn_speed_coef = turn_speed_coef
-        self._imu_sensor_interface = _sensor.acquire_imu_sensor_interface()
+        # The IMU prim already lives in the robot USD. Isaac Sim 6.2 wraps that
+        # prim with IMUSensor; the object is built on the first read, after load().
+        self._imu_sensor = None
         self._imu_sensor_path: str = imu_sensor_path
         self._solar_panel_joint = solar_panel_joint
         self._setup_subsystems_handler(pos_relative_to_prim)
@@ -433,49 +436,13 @@ class Robot:
                 "Path to imu sensor is not defined. Please check your .yaml configuration file. 'imu_sensor_path' should be defined on the same level as 'robot_name'."
             )
 
-        # https://docs.isaacsim.omniverse.nvidia.com/4.5.0/sensors/isaacsim_sensors_physics_imu.html#reading-sensor-output
-        sensor_reading = self._imu_sensor_interface.get_sensor_reading(
-            self._imu_sensor_path, use_latest_data=True, read_gravity=True
-        )
-        linear_acceleration = {
-            "ax": sensor_reading.lin_acc_x,
-            "ay": sensor_reading.lin_acc_y,
-            "az": sensor_reading.lin_acc_z,
-        }
-        angular_velocity = {
-            "gx": sensor_reading.ang_vel_x,
-            "gy": sensor_reading.ang_vel_y,
-            "gz": sensor_reading.ang_vel_z,
-        }
-
-        # orientation = sensor_reading.orientation # w, x, y, z
-
-        raw_orientation = np.asarray(sensor_reading.orientation, dtype=float)
-
-        if raw_orientation.shape != (4,):
-            print(f"[WARN] Invalid IMU orientation shape: {raw_orientation}")
-            xyz_orientation = np.zeros(3)
-
-        elif np.linalg.norm(raw_orientation) < 1e-8:
-            print(
-                f"[WARN] IMU returned zero quaternion at path "
-                f"{self._imu_sensor_path}: {raw_orientation}. "
-                "Sensor is probably not initialized yet."
-            )
-            xyz_orientation = np.zeros(3)
-
-        else:
-            raw_orientation = raw_orientation / np.linalg.norm(raw_orientation)
-
-            xyz_orientation = transform_orientation_from_xyzw_into_xyz(raw_orientation)
-
-        orientation = {
-            "roll": -float(xyz_orientation[0]),
-            "pitch": -float(xyz_orientation[1]),
-            "yaw": float(xyz_orientation[2]),
-        }
-
-        return linear_acceleration, angular_velocity, orientation
+        # https://docs.isaacsim.omniverse.nvidia.com/6.2.0/sensors/isaacsim_sensors_physics_imu.html
+        # read_gravity=True is the specific force the 5.0 interface returned with the same flag.
+        # The 6.2 sensor samples every physics step, which matches the old latest-sample read.
+        if self._imu_sensor is None:
+            self._imu_sensor = IMUSensor(self._imu_sensor_path)
+        sensor_reading = self._imu_sensor.get_sensor_reading(read_gravity=True)
+        return readings_from_imu(sensor_reading, self._imu_sensor_path)
 
     def get_pose(self) -> List[float]:
         """
