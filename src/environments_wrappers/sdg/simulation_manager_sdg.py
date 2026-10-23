@@ -9,6 +9,7 @@ from isaacsim.core.api.world import World
 from src.environments_wrappers.sdg.lunalab_sdg import SDG_Lunalab
 from src.environments_wrappers.sdg.lunaryard_sdg import SDG_Lunaryard
 from src.labeling.auto_label import AutonomousLabeling
+from src.runtime.sim_warmup import step_warmup
 
 
 class SyntheticDataGeneration_LabManagerFactory:
@@ -50,8 +51,7 @@ class SDG_SimulationManager:
         self.LC = SDG_LMF(cfg)
         self.LC.load()
         print("After lab is loaded")
-        for i in range(100):
-            self.world.step(render=True)
+        step_warmup(self.world, cfg, reset=False)
         print("After world reset")
         self.generation_settings.prim_path = self.LC.scene_name + "/" + self.generation_settings.prim_path
         self.AL = AutonomousLabeling(self.generation_settings)

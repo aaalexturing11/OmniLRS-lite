@@ -8,6 +8,7 @@ import carb
 import omni
 
 from src.configurations.rendering_confs import ChromaticAberrationsConf, FlaresConf, MotionBlurConf
+from src.runtime.memory_budget import renderer_runtime_flags
 
 # ==============================================================================
 # Renderer Control
@@ -63,10 +64,10 @@ def apply_memory_runtime(memory_cfg: dict) -> None:
     Both are skipped when the operator asked for the unmodified profile.
     """
 
-    if not memory_cfg or memory_cfg.get("name") in (None, "off", "high"):
-        return
-    _try_set_setting("/rtx-transient/resourcemanager/enableTextureStreaming", True)
-    if memory_cfg.get("name") == "low":
+    flags = renderer_runtime_flags(memory_cfg)
+    if flags["texture_streaming"]:
+        _try_set_setting("/rtx-transient/resourcemanager/enableTextureStreaming", True)
+    if flags["eco_mode"]:
         _try_set_setting("/rtx/ecoMode/enabled", True)
 
 

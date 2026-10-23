@@ -14,6 +14,7 @@ def startSim(cfg: dict):
         set_motion_blur,
         set_tbn_frame_mode,
     )
+    from src.runtime.kit_launch import build_kit_launch
     from src.runtime.memory_budget import log_process_memory, release_unused_memory
 
     class SimulationApp_wait(SimulationApp):
@@ -29,22 +30,25 @@ def startSim(cfg: dict):
 
         def close(self, wait_for_replicator=True) -> None:
             """Close the running Omniverse Toolkit."""
-            try:
-                # make sure that any replicator workflows finish rendering/writing
-                import omni.replicator.core as rep
+            # SDG is the only mode that starts replicator. Importing it on the
+            # other modes loads the extension during shutdown.
+            if not getattr(self, "omnilrs_skip_replicator", False):
+                try:
+                    # make sure that any replicator workflows finish rendering/writing
+                    import omni.replicator.core as rep
 
-                if rep.orchestrator.get_status() not in [
-                    rep.orchestrator.Status.STOPPED,
-                    rep.orchestrator.Status.STOPPING,
-                ]:
-                    rep.orchestrator.stop()
-                if wait_for_replicator:
-                    rep.orchestrator.wait_until_complete()
+                    if rep.orchestrator.get_status() not in [
+                        rep.orchestrator.Status.STOPPED,
+                        rep.orchestrator.Status.STOPPING,
+                    ]:
+                        rep.orchestrator.stop()
+                    if wait_for_replicator:
+                        rep.orchestrator.wait_until_complete()
 
-                # Disable capture on play to avoid replicator engaging on any new timeline events
-                rep.orchestrator.set_capture_on_play(False)
-            except Exception:
-                pass
+                    # Disable capture on play to avoid replicator engaging on any new timeline events
+                    rep.orchestrator.set_capture_on_play(False)
+                except Exception:
+                    pass
 
             for wait in self.wait_for_threads:
                 self._app.print_and_log(f"Waiting for external thread to join: {wait}")
@@ -100,8 +104,12 @@ def startSim(cfg: dict):
         launch_config["width"] = int(width)
     if height:
         launch_config["height"] = int(height)
+    kit_plan = build_kit_launch(cfg)
+    cfg["_kit"] = kit_plan
+    launch_config.update(kit_plan["launch_updates"])
     log_process_memory("before SimulationApp")
-    simulation_app = SimulationApp_wait(launch_config)
+    simulation_app = SimulationApp_wait(launch_config, kit_plan["experience"])
+    simulation_app.omnilrs_skip_replicator = kit_plan["skip_replicator_on_close"]
     set_tbn_frame_mode(tbn_frame_mode)
     set_lens_flares(cfg)
     set_motion_blur(cfg)

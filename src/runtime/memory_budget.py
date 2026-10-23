@@ -5,6 +5,10 @@ It does not remove sensors, physics, deformation, rocks, craters or clipmaps.
 ``OMNILRS_MEMORY_PROFILE=off`` keeps every value from the yaml.
 ``OMNILRS_MEMORY_PROFILE=high`` does the same, except it disables multi-GPU
 when the machine has a single GPU.
+
+A 64 GiB host still selects the high RAM profile. An 8 GiB GPU on that host
+gets a separate viewport budget: one realtime sample, a 1280x720 viewport and
+texture streaming. Bounce limits, physics and camera resolutions stay put.
 """
 
 from __future__ import annotations
@@ -144,6 +148,23 @@ def gpu_memory_mib() -> Optional[list]:
     return values or None
 
 
+_VRAM_8GB_MIB = 9216
+_VRAM_12GB_MIB = 12288
+
+
+def classify_vram(gpus: Optional[list]) -> str:
+    """Classify the smallest GPU. 8 GiB cards report a little under 8192 MiB."""
+
+    if not gpus:
+        return "unknown"
+    smallest = min(gpus)
+    if smallest <= _VRAM_8GB_MIB:
+        return "8gb"
+    if smallest < _VRAM_12GB_MIB:
+        return "limited"
+    return "roomy"
+
+
 def classify_profile(total_bytes: int, available_bytes: int, requested: str) -> str:
     """Pick low, balanced or high from installed RAM, then step down if little is free."""
 
@@ -221,12 +242,17 @@ def apply_memory_budget(cfg: dict, memory: Optional[dict] = None, gpus: Optional
         _apply_terrain_budget(cfg, profile, gpus, adjustments)
         _apply_physics_budget(cfg, profile, adjustments)
 
+    vram_class = classify_vram(gpus)
+    if requested not in ("off", "high") and vram_class == "8gb":
+        _apply_8gb_vram_budget(cfg, adjustments)
+
     record = {
         "name": profile,
         "requested": requested,
         "total_bytes": memory["total"],
         "available_bytes": memory["available"],
         "gpu_memory_mib": gpus,
+        "vram_class": vram_class,
         "adjustments": adjustments,
     }
     cfg["_memory"] = record
@@ -287,6 +313,39 @@ def _apply_renderer_budget(cfg: dict, profile: str, adjustments: list) -> None:
         if renderer.get("height") is None:
             renderer["height"] = 720
             adjustments.append("rendering.renderer.height unset -> 720")
+
+
+def _apply_8gb_vram_budget(cfg: dict, adjustments: list) -> None:
+    """Viewport budget for an 8 GiB GPU on a machine that has enough RAM.
+
+    Sample count is the realtime RTX mode. Bounce limits stay at the yaml
+    value, so the light transport is the one already configured. Camera
+    resolutions are not in this dict.
+    """
+
+    rendering = cfg.get("rendering")
+    if not isinstance(rendering, dict):
+        return
+    renderer = rendering.get("renderer")
+    if not isinstance(renderer, dict):
+        return
+
+    kind = renderer.get("renderer", "RayTracedLighting")
+    spp_cap = 1 if kind == "RayTracedLighting" else 8
+    if "samples_per_pixel_per_frame" in renderer:
+        updated = _cap_int(renderer["samples_per_pixel_per_frame"], spp_cap, 1)
+        if updated != int(renderer["samples_per_pixel_per_frame"]):
+            adjustments.append(
+                "rendering.renderer.samples_per_pixel_per_frame "
+                f"{renderer['samples_per_pixel_per_frame']} -> {updated} (8 GiB VRAM viewport)"
+            )
+            renderer["samples_per_pixel_per_frame"] = updated
+
+    for axis, cap in (("width", 1280), ("height", 720)):
+        current = renderer.get(axis)
+        if current is None or int(current) > cap:
+            adjustments.append(f"rendering.renderer.{axis} {current} -> {cap} (8 GiB VRAM viewport)")
+            renderer[axis] = cap
 
 
 def _apply_gpu_budget(cfg: dict, profile: str, gpus: Optional[list], adjustments: list) -> None:
@@ -380,7 +439,7 @@ def _log_record(record: dict) -> None:
     available = record["available_bytes"] / _GIB
     message = (
         f"OmniLRS memory profile '{record['name']}' "
-        f"(requested {record['requested']}). "
+        f"(requested {record['requested']}, VRAM class {record.get('vram_class')}). "
         f"System RAM {total:.2f} GiB total, {available:.2f} GiB available. "
         f"GPU VRAM MiB: {record['gpu_memory_mib']}."
     )
@@ -388,6 +447,26 @@ def _log_record(record: dict) -> None:
         logger.warning("%s Adjustments: %s", message, "; ".join(record["adjustments"]))
     else:
         logger.info("%s No quality caps applied.", message)
+
+
+def renderer_runtime_flags(memory_cfg: Optional[dict]) -> dict:
+    """Kit settings that do not change bounce limits or camera resolution.
+
+    Texture streaming keeps the configured materials and loads the mip that
+    fits the view. Eco mode is limited to the low RAM profile: it changes the
+    still-camera sample count, which is the wrong trade on a 64 GiB host.
+    """
+
+    flags = {"texture_streaming": False, "eco_mode": False}
+    if not isinstance(memory_cfg, dict):
+        return flags
+    if memory_cfg.get("requested") in ("off", "high") or memory_cfg.get("name") in (None, "off"):
+        return flags
+    if memory_cfg.get("name") in ("low", "balanced") or memory_cfg.get("vram_class") in ("8gb", "limited"):
+        flags["texture_streaming"] = True
+    if memory_cfg.get("name") == "low":
+        flags["eco_mode"] = True
+    return flags
 
 
 def log_process_memory(stage: str) -> None:

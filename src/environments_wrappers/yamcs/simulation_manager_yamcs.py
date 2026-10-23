@@ -19,6 +19,7 @@ from src.environments.stellar_engine_env_mixin import StellarEngineEnvMixin
 from src.environments.utils import set_moon_env_name
 from src.environments_wrappers.rate import Rate
 from src.robots.robot import RobotManager
+from src.runtime.sim_warmup import step_warmup
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
@@ -186,8 +187,11 @@ class Yamcs_SimulationManager:
 
         return self.EC
 
-    def _step_world_and_reset(self, n=100):
-        for i in range(n):
+    def _step_world_and_reset(self, n=None):
+        if n is None:
+            step_warmup(self.world, self.cfg)
+            return
+        for _ in range(n):
             self.world.step(render=True)
         self.world.reset()
 

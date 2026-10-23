@@ -406,19 +406,16 @@ class Robot:
         resolutions = list(self._camera_conf.get("resolutions").keys())
 
         for res in resolutions:
-            self._cameras[res] = Camera(
+            # One render product carries RGBA and depth at this resolution.
+            # A second Camera at the same size reserved another full framebuffer.
+            camera = Camera(
                 self._camera_conf["prim_path"],
                 resolution=(self._camera_conf["resolutions"][res][0], self._camera_conf["resolutions"][res][1]),
             )
-            self._cameras[res].initialize()
-
-        for res in resolutions:
-            self._depth_cameras[res] = Camera(
-                self._camera_conf["prim_path"],
-                resolution=(self._camera_conf["resolutions"][res][0], self._camera_conf["resolutions"][res][1]),
-            )
-            self._depth_cameras[res].initialize()
-            self._depth_cameras[res].add_distance_to_image_plane_to_frame()
+            camera.initialize()
+            camera.add_distance_to_image_plane_to_frame()
+            self._cameras[res] = camera
+            self._depth_cameras[res] = camera
 
     def get_rgba_camera_view(self, resolution) -> np.ndarray:
         return self._cameras[resolution].get_rgba()

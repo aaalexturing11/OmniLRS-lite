@@ -74,3 +74,59 @@ En un equipo con 24 GiB o más y varios GiB libres no se aplica ninguno de esos 
 ## Arranque
 
 El log `omnilrs.memory` indica el perfil, la RAM de sistema y cada tope aplicado. Después de construir la escena registra working set y commit del proceso junto a la RAM disponible del sistema.
+
+## Fase 2: arranque de Isaac Sim 5.0
+
+Isaac Sim 5.0 en modo standalone ya abre `isaacsim.exp.base.python.kit`. Ese kit es el de Python. `isaacsim.exp.full.kit` es el del editor y carga más extensiones. OmniLRS deja `experience` vacío cuando ese archivo base no está en `EXP_PATH`, que es el mismo resultado que el constructor de `SimulationApp`. Si `EXP_PATH` apunta al kit base y el archivo existe, se pasa esa ruta. La ruta automática nunca elige el kit full. Un `OMNILRS_EXPERIENCE` explícito sí se respeta.
+
+En un equipo con **menos de 12 GiB instalados**, y con el perfil `auto` o `low`, el arranque pasa a headless, oculta la UI y activa `disable_viewport_updates`. Esa bandera, documentada por NVIDIA, evita refrescar el viewport por defecto mientras la sesión ya es headless. Las cámaras y los sensores RTX siguen creando sus propios render products. El bucle de ejecución de ROS 2, Yamcs y SDG sigue en `world.step(render=True)`. Zenoh sigue bombeando `simulation_app.update()`. `OMNILRS_KEEP_WINDOW=1` conserva la ventana en ese equipo. `OMNILRS_MEMORY_PROFILE=high` u `off` también la conservan, aunque el equipo tenga poca RAM instalada. SDG no entra en ese camino: sigue con viewport, con el cierre de Replicator y con los 100 frames renderizados de calentamiento, porque la generación de imágenes depende de ese render.
+
+El calentamiento de ROS 2, Zenoh y Yamcs en ese mismo equipo de menos de 12 GiB instalados hace **98 pasos de física sin render y 2 con render**. Sigue habiendo 100 pasos del solver por cada llamada, con el mismo `physics_dt`. Los 100 pasos anteriores renderizaban el viewport en todos. `OMNILRS_WARMUP_RENDERED` y `OMNILRS_WARMUP_PHYSICS` pisan esas cuentas. En un equipo con 12 GiB o más el calentamiento sigue siendo 100 pasos renderizados.
+
+`limit_cpu_threads` queda en 4 cuando la RAM instalada es menor de 12 GiB, y en 8 cuando el perfil es `low` o `balanced` en una máquina más grande. Eso acota los hilos de carb y de TBB. El solver, la gravedad, el CCD y el paso de PhysX no se tocan. Con una sola GPU, `max_gpu_count` queda en 1. En el perfil `high` de un equipo grande, con dos GPU, no se escribe ninguno de esos topes.
+
+La ventana del sistema, cuando la sesión no es headless y el yaml ya fijó ancho y alto, usa ese mismo tamaño. El valor por defecto de `SimulationApp` es una ventana de 1440×900 junto a un viewport de 1280×720. Igualarlas evita ese segundo tamaño de swapchain. Es un ahorro de VRAM **estimado**, no medido aquí.
+
+Al cerrar, ROS 2, Zenoh y Yamcs ya no importan `omni.replicator.core`. SDG sí, para terminar la escritura de los anotadores.
+
+`OMNILRS_DISABLE_UI_EXTENSIONS=1` añade `--disable` para barras y menús (`omni.kit.window.toolbar`, menús del viewport, `isaacsim.gui.menu` y otras de la misma lista). Está apagado por defecto: no se comprobó, contra un Kit 107.3 en marcha, que el kit base pueda arrancar sin ellas. La lista no incluye `isaacsim.sensors.camera`, `isaacsim.sensors.rtx`, `omni.physx`, `omni.hydra.rtx` ni `omni.usd`. `OMNILRS_DISABLE_VIEWPORT=1` aplica `disable_viewport_updates` en una sesión que ya es headless, también en equipos grandes.
+
+No se desactivan las actualizaciones de pose de Fabric. OmniLRS lee transforms y articulaciones. No se activa `skipMaterialLoading`. No se cambia el pipeline de física a GPU. El modo ROS 2 sigue habilitando `isaacsim.ros2.bridge` y `omni.kit.viewport.actions` después del arranque.
+
+### Qué ya no depende del runtime de Kit
+
+El motor estelar (`src/stellar/stellar_engine.py`) y los modelos de radio, potencia, térmico, OBC y compresión de cámara no importan `omni`, `isaacsim` ni `pxr`. El test de radio comprueba la caída cuadrática. El test térmico avanza un constante de tiempo con el Sol en +Z y compara cada cara con la sigmoide. El motor estelar se ejecutó aquí con `de421.bsp`, la fecha por defecto (2024-05-11 16:30 UTC) y un observador a −89.5° de latitud: altitud solar **−1.335°**, azimut **140.127°**, distancia **1.508×10¹¹ m** (skyfield 1.55). Esas cuentas no pasan por Kit.
+
+El mixin que escribe la luz solar sí usa `pxr`. PhysX, las cámaras RTX, el stage USD y las mallas de clipmap siguen dentro del proceso de Kit. Separarlos en otro proceso duplicaría el stage y la escena física. No hay un runtime alternativo dentro de este repositorio que conserve esas funciones.
+
+### Medido, estimado y requisito de hardware
+
+En esta máquina, el 22 de octubre de 2026, `import isaacsim` termina en `ModuleNotFoundError`. Una lectura de RAM del mismo día da **31.129 GiB instalados** y **0.769 GiB disponibles**. No hay una medición de RSS de Kit, de VRAM ni de FPS. El objetivo de ejecutar el simulador completo con 6 GiB de RAM **sigue sin estar validado**.
+
+| Dato | Tipo |
+| --- | --- |
+| Working set y commit del proceso de los tests de terreno, fase 1 | Medido, sin Kit |
+| RSS de `SimulationApp`, VRAM, FPS, estabilidad en 6 u 8 GiB | No medido |
+| Ventana del DEM, bloques de cráteres, tamaño de malla | Calculado a partir de los arrays |
+| Viewport headless, hilos de Kit, calentamiento, Replicator al cerrar, kit base frente a kit full | Ahorro estimado. La política está cubierta por tests de decisión, no por una sesión de Kit |
+| Modelos de radio, térmico y motor estelar con de421 | Ejecutados aquí, fuera de Kit |
+| RAM instalada de esta máquina | Medida: 31.129 GiB. No es un equipo de 6–8 GiB |
+| Mínimo de Isaac Sim 5.0 publicado por NVIDIA | 32 GiB de RAM y 16 GiB de VRAM. Es el requisito del runtime, no una cifra medida por OmniLRS |
+
+Lo que este repositorio no puede bajar: el proceso de Kit, RTX, PhysX, la caché de shaders y el kit base, que de todos modos carga sensores y el renderer. Un DEM de cientos de kilómetros a resolución fina no cabe residente en 6 GiB; la ventana de alta resolución ya se acota en el perfil bajo, y el archivo del polo sur no está en este checkout.
+
+## 8 GiB de VRAM con 64 GiB de RAM
+
+Una RTX 2000 Blackwell de portátil con 8 GiB de VRAM y 64 GiB de RAM cae en el perfil de RAM **alto**. La ventana del DEM, los workers de cráteres, los hilos de PhysX y los rebotes del yaml se quedan. El presupuesto nuevo mira la VRAM por separado.
+
+Con `OMNILRS_MEMORY_PROFILE=auto` y la GPU más pequeña en 9 GiB o menos:
+
+- `samples_per_pixel_per_frame` de `RayTracedLighting` pasa a 1. Es el modo de tiempo real de RTX. En trazado de caminos el tope es 8. Los rebotes no se tocan.
+- El viewport queda en 1280×720. Las resoluciones de las cámaras del robot no se tocan: Husky sigue en 320×240 y 1280×720, Pragyaan en 640×480 y 1440×1080.
+- El clipmap grueso queda en modo híbrido: el DEM de baja resolución vive en los 64 GiB y no se copia a VRAM.
+- Se activa el streaming de texturas. El material es el mismo; Kit mantiene residente el mip que cabe en la vista. El eco mode no se activa en este perfil, porque cambia las muestras cuando la cámara está quieta.
+- Color y profundidad de cada resolución salen del mismo render product. Antes había un segundo `Camera` del mismo tamaño solo para la profundidad.
+
+`OMNILRS_MEMORY_PROFILE=high` deja las 32 muestras. El clipmap híbrido sigue aplicándose por debajo de 12 GiB de VRAM.
+
+Esto no se ha medido en una Blackwell. La GPU de la máquina donde está abierto el repo es una GeForce RTX 2060 SUPER, también de 8192 MiB, y Kit no se ha lanzado. El ahorro de muestras, de la ventana y del segundo framebuffer de profundidad es **estimado**. El heap de RTX que reserva Isaac Sim 5.0 sigue teniendo un mínimo publicado de 16 GiB de VRAM. Caber el viewport en 8 GiB no demuestra que el proceso de Kit arranque y se quede estable en esa Blackwell.

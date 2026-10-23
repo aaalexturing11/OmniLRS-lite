@@ -15,6 +15,7 @@ from src.environments_wrappers.zenoh.largescale_zenoh import Zenoh_LargeScaleMan
 from src.environments_wrappers.zenoh.lunalab_zenoh import Zenoh_LunalabManager
 from src.environments_wrappers.zenoh.lunaryard_zenoh import Zenoh_LunaryardManager
 from src.environments_wrappers.zenoh.robot_manager_zenoh import Zenoh_RobotManager
+from src.runtime.sim_warmup import step_warmup
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
@@ -75,8 +76,11 @@ class Zenoh_SimulationManager:
 
         self.entry_task_is_done = False
 
-    def _step_world_and_reset(self, n=100):
-        for i in range(n):
+    def _step_world_and_reset(self, n=None):
+        if n is None:
+            step_warmup(self.world, self.cfg)
+            return
+        for _ in range(n):
             self.world.step(render=True)
         self.world.reset()
 

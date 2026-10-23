@@ -5,6 +5,7 @@ so a later edit cannot silently change the mesh or drop height samples.
 """
 
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -13,6 +14,7 @@ from src.runtime.memory_budget import (
     classify_profile,
     estimate_hr_dem_bytes,
     process_memory,
+    renderer_runtime_flags,
 )
 from src.terrain_management.array_utils import load_transposed_elevation
 from src.terrain_management.large_scale_terrain.dem_shift import shift_heightfield
@@ -110,6 +112,59 @@ def test_low_profile_shrinks_the_window_without_dropping_below_rock_span(monkeyp
     assert cfg["rendering"]["renderer"]["samples_per_pixel_per_frame"] == 1
     assert cfg["rendering"]["renderer"]["multi_gpu"] is False
     assert estimate_hr_dem_bytes(4, 50, 0.025) > estimate_hr_dem_bytes(2, 50, 0.025)
+
+
+def test_64gb_ram_with_8gb_vram_caps_the_viewport_only(monkeypatch):
+    monkeypatch.setenv("OMNILRS_MEMORY_PROFILE", "auto")
+    cfg = _sample_cfg()
+    record = apply_memory_budget(cfg, memory={"total": 64 * _GIB, "available": 40 * _GIB}, gpus=[8192])
+    renderer = cfg["rendering"]["renderer"]
+    terrain = cfg["environment"]["large_scale_terrain"]
+    assert record["name"] == "high"
+    assert record["vram_class"] == "8gb"
+    assert renderer["samples_per_pixel_per_frame"] == 1
+    assert renderer["max_bounces"] == 6
+    assert renderer["max_specular_transmission_bounces"] == 6
+    assert renderer["width"] == 1280
+    assert renderer["height"] == 720
+    assert renderer["multi_gpu"] is False
+    assert terrain["hr_dem_num_blocks"] == 4
+    assert terrain["num_workers_craters"] == 8
+    assert terrain["geo_cm_coarse_acceleration_mode"] == "hybrid"
+    assert cfg["physics"]["physics_scene"] == {}
+    assert renderer_runtime_flags(record) == {"texture_streaming": True, "eco_mode": False}
+
+
+def test_explicit_high_keeps_viewport_samples_on_an_8gb_gpu(monkeypatch):
+    monkeypatch.setenv("OMNILRS_MEMORY_PROFILE", "high")
+    cfg = _sample_cfg()
+    record = apply_memory_budget(cfg, memory={"total": 64 * _GIB, "available": 40 * _GIB}, gpus=[8192])
+    assert record["vram_class"] == "8gb"
+    assert cfg["rendering"]["renderer"]["samples_per_pixel_per_frame"] == 32
+    assert "width" not in cfg["rendering"]["renderer"]
+    assert renderer_runtime_flags(record)["texture_streaming"] is False
+    assert cfg["environment"]["large_scale_terrain"]["geo_cm_coarse_acceleration_mode"] == "hybrid"
+
+
+def test_vram_between_8_and_12gb_keeps_samples_and_streams_textures(monkeypatch):
+    monkeypatch.setenv("OMNILRS_MEMORY_PROFILE", "auto")
+    cfg = _sample_cfg()
+    record = apply_memory_budget(cfg, memory={"total": 64 * _GIB, "available": 40 * _GIB}, gpus=[10240])
+    assert record["name"] == "high"
+    assert record["vram_class"] == "limited"
+    assert cfg["rendering"]["renderer"]["samples_per_pixel_per_frame"] == 32
+    assert cfg["environment"]["large_scale_terrain"]["hr_dem_num_blocks"] == 4
+    assert cfg["environment"]["large_scale_terrain"]["geo_cm_coarse_acceleration_mode"] == "hybrid"
+    assert renderer_runtime_flags(record)["texture_streaming"] is True
+    assert renderer_runtime_flags(record)["eco_mode"] is False
+
+
+def test_rgba_and_depth_share_one_camera_product():
+    text = (Path(__file__).resolve().parents[1] / "src" / "robots" / "robot.py").read_text(encoding="utf-8")
+    body = text[text.index("def _initialize_cameras") : text.index("def get_rgba_camera_view")]
+    assert body.count("Camera(") == 1
+    assert "_depth_cameras[res] = camera" in body
+    assert "_cameras[res] = camera" in body
 
 
 def test_high_profile_keeps_configured_quality(monkeypatch):

@@ -21,6 +21,7 @@ from src.environments_wrappers.ros2.lunalab_ros2 import ROS_LunalabManager
 from src.environments_wrappers.ros2.lunaryard_ros2 import ROS_LunaryardManager
 from src.environments_wrappers.ros2.robot_manager_ros2 import ROS_RobotManager
 from src.physics.physics_scene import PhysicsSceneManager
+from src.runtime.sim_warmup import step_warmup
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
@@ -108,9 +109,7 @@ class ROS2_SimulationManager:
         set_moon_env_name(cfg["environment"]["name"])
 
         PhysicsSceneManager(cfg["physics"]["physics_scene"])
-        for i in range(100):
-            self.world.step(render=True)
-        self.world.reset()
+        step_warmup(self.world, cfg)
 
         if cfg["environment"]["enforce_realtime"]:
             self.rate = Rate(dt=cfg["environment"]["physics_dt"])
@@ -162,9 +161,7 @@ class ROS2_SimulationManager:
                 self.ROSEnvironmentManager.EC.get_sun_prim_path()
             )
 
-        for i in range(100):
-            self.world.step(render=True)
-        self.world.reset()
+        step_warmup(self.world, cfg)
 
     def run_simulation(self) -> None:
         """
