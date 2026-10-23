@@ -172,9 +172,9 @@ class GeoClipmapManager:
         mesh.GetPointsAttr().Set(points)
 
         if update_topology:
-            idxs = np.array(indices).reshape(-1, 3)
+            idxs = np.asarray(indices).reshape(-1, 3)
             mesh.GetFaceVertexIndicesAttr().Set(idxs.ravel())
-            mesh.GetFaceVertexCountsAttr().Set([3] * len(idxs))
+            mesh.GetFaceVertexCountsAttr().Set(np.full(len(idxs), 3, dtype=np.int32))
             pv = UsdGeom.PrimvarsAPI(mesh.GetPrim()).CreatePrimvar("st", Sdf.ValueTypeNames.Float2Array)
             pv.Set(points[:, :2])
             pv.SetInterpolation("vertex")

@@ -5,7 +5,6 @@ __email__ = "ljburtz@jaops.com"
 from typing import Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from src.configurations.procedural_terrain_confs import (
     BoundaryDistributionConf,
@@ -14,6 +13,14 @@ from src.configurations.procedural_terrain_confs import (
     DepthDistributionConf,
     FootprintConf,
 )
+
+
+def _plt():
+    """Import matplotlib only when a debug plot is requested."""
+
+    from matplotlib import pyplot as plt
+
+    return plt
 
 
 class FootprintProfileGenerator:
@@ -66,10 +73,10 @@ class FootprintProfileGenerator:
         """
         Plot footprint profile.
         """
-        plt.scatter(self.profile[:, 0], self.profile[:, 1])
-        plt.xlabel("x")
-        plt.ylabel("y")
-        plt.title("Footprint Profile in local frame.")
+        _plt().scatter(self.profile[:, 0], self.profile[:, 1])
+        _plt().xlabel("x")
+        _plt().ylabel("y")
+        _plt().title("Footprint Profile in local frame.")
 
 
 ### Depth Distribution Generators ###
@@ -167,10 +174,10 @@ class UniformDepthDistributionGenerator(DepthDistributionGenerator):
         """
         x = (self.footprint.height / 2) * np.linspace(-1, 1, self.footprint_profile_height)
         y = self.get_depth_distribution_yslice()
-        plt.plot(x, y)
-        plt.xlabel("x [m]")
-        plt.ylabel("depth mask")
-        plt.title("XZ cross section distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("x [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("XZ cross section distribution")
 
 
 class SinusoidalDepthDistributionGenerator(DepthDistributionGenerator):
@@ -223,10 +230,10 @@ class SinusoidalDepthDistributionGenerator(DepthDistributionGenerator):
         """
         x = (self.footprint.height / 2) * np.linspace(-1, 1, self.footprint_profile_height)
         y = self.get_depth_distribution_yslice()
-        plt.plot(x, y)
-        plt.xlabel("x [m]")
-        plt.ylabel("depth mask")
-        plt.title("XZ cross section distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("x [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("XZ cross section distribution")
 
 
 class TrapezoidalDepthDistributionGenerator(DepthDistributionGenerator):
@@ -317,10 +324,10 @@ class TrapezoidalDepthDistributionGenerator(DepthDistributionGenerator):
         """
         x = (self.footprint.height / 2) * np.linspace(-1, 1, self.footprint_profile_height)
         y = self.get_depth_distribution_yslice()
-        plt.plot(x, y)
-        plt.xlabel("x [m]")
-        plt.ylabel("depth mask")
-        plt.title("XZ cross section of depth distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("x [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("XZ cross section of depth distribution")
 
 
 ### Boundary Distribution Generators ###
@@ -420,10 +427,10 @@ class UniformBoundaryDistributionGenerator(BoundaryDistributionGenerator):
         """
         x = (self.footprint.width / 2) * np.linspace(-1, 1, self.footprint_profile_width)
         y = self.get_boundary_distribution_xslice()
-        plt.plot(x, y)
-        plt.xlabel("y [m]")
-        plt.ylabel("depth mask")
-        plt.title("YZ cross section distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("y [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("YZ cross section distribution")
 
 
 class ParabolicBoundaryDistributionGenerator(BoundaryDistributionGenerator):
@@ -475,10 +482,10 @@ class ParabolicBoundaryDistributionGenerator(BoundaryDistributionGenerator):
         """
         x = (self.footprint.width / 2) * np.linspace(-1, 1, self.footprint_profile_width)
         y = self.get_boundary_distribution_xslice()
-        plt.plot(x, y)
-        plt.xlabel("y [m]")
-        plt.ylabel("depth mask")
-        plt.title("YZ cross section distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("y [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("YZ cross section distribution")
 
 
 class TrapezoidalBoundaryDistributionGenerator(BoundaryDistributionGenerator):
@@ -532,10 +539,10 @@ class TrapezoidalBoundaryDistributionGenerator(BoundaryDistributionGenerator):
         """
         x = (self.footprint.width / 2) * np.linspace(-1, 1, self.footprint_profile_width)
         y = self.get_boundary_distribution_xslice()
-        plt.plot(x, y)
-        plt.xlabel("y [m]")
-        plt.ylabel("depth mask")
-        plt.title("YZ cross section distribution")
+        _plt().plot(x, y)
+        _plt().xlabel("y [m]")
+        _plt().ylabel("depth mask")
+        _plt().title("YZ cross section distribution")
 
 
 class DeformationEngine:
@@ -765,17 +772,17 @@ if __name__ == "__main__":
     # footprint.plot_profile()
 
     # Plot depth distribution
-    plt.figure(figsize=(10, 5))
+    _plt().figure(figsize=(10, 5))
     uniform_depth_distribution.plot_depth_distribution()
     sinusoidal_depth_distribution.plot_depth_distribution()
     trapezoidal_depth_distribution.plot_depth_distribution()
-    plt.legend(["uniform", "sinusoidal", "trapezoidal"], loc="best")
-    plt.show()
+    _plt().legend(["uniform", "sinusoidal", "trapezoidal"], loc="best")
+    _plt().show()
 
     # Plot boundary distribution
-    plt.figure(figsize=(10, 5))
+    _plt().figure(figsize=(10, 5))
     uniform_boundary_distribution.plot_boundary_distribution()
     parabolic_boundary_distribution.plot_boundary_distribution()
     trapezoidal_boundary_distribution.plot_boundary_distribution()
-    plt.legend(["uniform", "parabolic", "trapezoidal"], loc="best")
-    plt.show()
+    _plt().legend(["uniform", "parabolic", "trapezoidal"], loc="best")
+    _plt().show()

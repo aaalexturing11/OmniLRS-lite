@@ -275,6 +275,9 @@ def load_material(material_name: str, material_path: str, destination_path: str 
     assert os.path.exists(material_path), "Material file not found at: {}".format(material_path)
 
     mtl_path = os.path.join(destination_path, material_name)
+    stage = omni.usd.get_context().get_stage()
+    if stage is not None and stage.GetPrimAtPath(mtl_path).IsValid():
+        return mtl_path
     omni.kit.commands.execute(
         "CreateMdlMaterialPrimCommand",
         mtl_url=material_path,

@@ -2,6 +2,10 @@ __author__ = "Antoine Richard"
 __maintainer__ = "Louis Burtz"
 __email__ = "ljburtz@jaops.com"
 
+# isort: off
+import src.runtime.thread_limits  # noqa: F401  caps BLAS/Numba threads before NumPy
+# isort: on
+
 import logging
 from typing import Dict
 
@@ -10,6 +14,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from src.configurations import configFactory
 from src.environments_wrappers import startSim
+from src.runtime.memory_budget import apply_memory_budget
 
 numba_logger = logging.getLogger("numba")
 numba_logger.setLevel(logging.WARNING)
@@ -73,6 +78,7 @@ def instantiateConfigs(cfg: dict) -> dict:
 @hydra.main(config_name="config", config_path="cfg", version_base="1.3")
 def run(cfg: DictConfig):
     cfg = omegaconfToDict(cfg)
+    apply_memory_budget(cfg)
     cfg = instantiateConfigs(cfg)
     SM, simulation_app = startSim(cfg)
 

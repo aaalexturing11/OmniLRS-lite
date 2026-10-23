@@ -45,6 +45,31 @@ def set_tbn_frame_mode(mode: int) -> None:
     carb.settings.get_settings().set("/rtx/hydra/TBNFrameMode", mode)
 
 
+def _try_set_setting(path: str, value) -> None:
+    """Set a Kit setting when that build exposes it."""
+
+    try:
+        carb.settings.get_settings().set(path, value)
+    except Exception:
+        carb.log_warn(f"OmniLRS could not set {path}")
+
+
+def apply_memory_runtime(memory_cfg: dict) -> None:
+    """Apply renderer caches that do not change the selected render mode.
+
+    Texture streaming keeps the same materials and serves the mip that fits
+    the current view. Eco mode lowers the realtime cost while the camera is
+    still; moving the camera renders at the configured sample count again.
+    Both are skipped when the operator asked for the unmodified profile.
+    """
+
+    if not memory_cfg or memory_cfg.get("name") in (None, "off", "high"):
+        return
+    _try_set_setting("/rtx-transient/resourcemanager/enableTextureStreaming", True)
+    if memory_cfg.get("name") == "low":
+        _try_set_setting("/rtx/ecoMode/enabled", True)
+
+
 # ==============================================================================
 # Lens Flares Controls
 # ==============================================================================

@@ -145,9 +145,12 @@ class GeoClipmap:
                     self.specs.meshBaseLODExtentHeightfieldTexels,
                 )
             with ScopedTimer("scale mesh backbone and compute uvs", active=self.profiling):
-                self.points = self.points * 2 * self.specs.minimum_target_resolution
+                self.points = np.ascontiguousarray(self.points, dtype=np.float32)
+                self.indices = np.ascontiguousarray(self.indices, dtype=np.int32)
+                # In-place scale stays float32. A Python float would promote a new array to float64.
+                self.points *= np.float32(2.0 * self.specs.minimum_target_resolution)
                 # The UVs of the triangle corners are the planar coordinates of their vertices.
-                self.uvs = self.points[self.indices, :2]
+                self.uvs = np.ascontiguousarray(self.points[self.indices, :2])
 
     def save_mesh(self) -> None:
         """
@@ -168,14 +171,17 @@ class GeoClipmap:
         the mesh backbone is rebuilt. Otherwise, the mesh backbone is loaded from the file.
         """
 
-        data = np.load(self.specs.meshBackBonePath)
-        if data["specs_hash"] != self.specs_hash:
+        with np.load(self.specs.meshBackBonePath) as data:
+            stored_hash = data["specs_hash"]
+            stored_hash = stored_hash.item() if hasattr(stored_hash, "item") else stored_hash
+            specs_match = stored_hash == self.specs_hash
+            if specs_match:
+                self.points = np.ascontiguousarray(data["points"], dtype=np.float32)
+                self.indices = np.ascontiguousarray(data["indices"], dtype=np.int32)
+                self.uvs = np.ascontiguousarray(data["uvs"], dtype=np.float32)
+        if not specs_match:
             self.build_mesh()
             self.save_mesh()
-        else:
-            self.points = data["points"]
-            self.indices = data["indices"]
-            self.uvs = data["uvs"]
 
     def initMesh(self) -> None:
         """

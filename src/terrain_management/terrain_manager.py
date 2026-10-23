@@ -14,7 +14,9 @@ from WorldBuilders import pxr_utils
 
 from assets import get_assets_path
 from src.configurations.procedural_terrain_confs import TerrainManagerConf
+from src.terrain_management.array_utils import close_npy
 from src.terrain_management.terrain_generation import GenerateProceduralMoonYard
+from src.terrain_management.terrain_grid import build_terrain_grid
 
 
 class TerrainManager:
@@ -114,16 +116,24 @@ class TerrainManager:
         dem_path = self._dems[name][0]
         mask_path = self._dems[name][1]
         assert os.path.isfile(dem_path), "DEM.npy not found in folder."
-        DEM = np.load(dem_path)
-        if mask_path is None:
-            mask = np.ones_like(DEM, dtype=bool)
-        else:
-            mask = np.load(mask_path)
-
-        self._DEM = np.zeros((self._sim_length, self._sim_width), dtype=np.float32)
-        self._mask = np.zeros((self._sim_length, self._sim_width), dtype=np.float32)
-        self._DEM[: DEM.shape[0], : DEM.shape[1]] = DEM[: self._sim_length, : self._sim_width]
-        self._mask[: mask.shape[0], : mask.shape[1]] = mask[: self._sim_length, : self._sim_width]
+        DEM = np.load(dem_path, mmap_mode="r")
+        mask = None if mask_path is None else np.load(mask_path, mmap_mode="r")
+        try:
+            self._DEM = np.zeros((self._sim_length, self._sim_width), dtype=np.float32)
+            self._mask = np.zeros((self._sim_length, self._sim_width), dtype=np.float32)
+            rows = min(DEM.shape[0], self._sim_length)
+            cols = min(DEM.shape[1], self._sim_width)
+            np.copyto(self._DEM[:rows, :cols], DEM[:rows, :cols], casting="unsafe")
+            if mask is None:
+                self._mask[:rows, :cols] = 1.0
+            else:
+                mask_rows = min(mask.shape[0], self._sim_length)
+                mask_cols = min(mask.shape[1], self._sim_width)
+                np.copyto(self._mask[:mask_rows, :mask_cols], mask[:mask_rows, :mask_cols], casting="unsafe")
+        finally:
+            close_npy(DEM)
+            if mask is not None:
+                close_npy(mask)
 
     @staticmethod
     def gridIndex(x: int, y: int, stride: int) -> int:
@@ -147,43 +157,12 @@ class TerrainManager:
         Also generates the UVs coordinates for the terrain mesh.
         """
 
-        vertices = []
-        uvs = []
-        for y in range(self._sim_length):
-            for x in range(self._sim_width):
-                pos = (
-                    float(x) * self._grid_size,
-                    float(y) * self._grid_size,
-                    float(0),
-                )
-
-                # Generates vertices indices for the terrain mesh.
-                vertices.append(pos)
-                if x > 0 and y > 0:  # Two triangles per pixel.
-                    # First triangle.
-                    self._indices.append(self.gridIndex(x, y - 1, self._sim_width))
-                    self._indices.append(self.gridIndex(x, y, self._sim_width))
-                    self._indices.append(self.gridIndex(x - 1, y - 1, self._sim_width))
-                    # Second triangle.
-                    self._indices.append(self.gridIndex(x, y, self._sim_width))
-                    self._indices.append(self.gridIndex(x - 1, y, self._sim_width))
-                    self._indices.append(self.gridIndex(x - 1, y - 1, self._sim_width))
-
-                # Generates UVs coordinates for the terrain mesh.
-                if x > 0 and y > 0:  # Two triangles per pixel.
-                    # First triangle.
-                    uvs.append((x, y - 1))
-                    uvs.append((x, y))
-                    uvs.append((x - 1, y - 1))
-                    # Second triangle.
-                    uvs.append((x, y))
-                    uvs.append((x - 1, y))
-                    uvs.append((x - 1, y - 1))
-
+        grid = build_terrain_grid(self._sim_length, self._sim_width, self._grid_size)
         self._sim_grid = np.zeros(self._sim_width * self._sim_length, dtype=np.float32)
-        self._sim_verts = np.array(vertices, dtype=np.float32)
-        self._sim_uvs = np.array(uvs, dtype=np.float32)
-        self._sim_uvs = self._sim_uvs * self._grid_size
+        self._sim_verts = grid.vertices
+        self._indices = grid.indices
+        self._sim_uvs = grid.uvs
+        self._face_vertex_counts = grid.face_vertex_counts
 
     def renderMesh(
         self,
@@ -220,9 +199,13 @@ class TerrainManager:
         mesh.GetPointsAttr().Set(points)
 
         if update_topology:
-            idxs = np.array(indices).reshape(-1, 3)
+            idxs = np.asarray(indices).reshape(-1, 3)
             mesh.GetFaceVertexIndicesAttr().Set(idxs)
-            mesh.GetFaceVertexCountsAttr().Set([3] * len(idxs))
+            counts = getattr(self, "_face_vertex_counts", None)
+            if counts is None or len(counts) != len(idxs):
+                counts = np.full(len(idxs), 3, dtype=np.int32)
+                self._face_vertex_counts = counts
+            mesh.GetFaceVertexCountsAttr().Set(counts)
             UsdGeom.Primvar(mesh.GetDisplayColorAttr()).SetInterpolation("vertex")
             pv = UsdGeom.PrimvarsAPI(mesh.GetPrim()).CreatePrimvar("st", Sdf.ValueTypeNames.Float2Array)
             pv.Set(uvs)

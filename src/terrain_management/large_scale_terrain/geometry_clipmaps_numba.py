@@ -165,8 +165,8 @@ def _build_mesh(start_level, num_levels, meshBaseLODExtentHeightfieldTexels):
 
     print("Building the mesh backbone, this may take time...")
     num_triangles, max_points = _mesh_buffer_sizes(start_level, num_levels, meshBaseLODExtentHeightfieldTexels)
-    points = np.empty((max_points, 3), dtype=np.float64)
-    indices = np.empty(3 * num_triangles, dtype=np.int64)
+    points = np.empty((max_points, 3), dtype=np.float32)
+    indices = np.empty(3 * num_triangles, dtype=np.int32)
     counters = np.zeros(2, dtype=np.int64)
     prev_grid = np.full((0, 0), -1, dtype=np.int64)
     prev_step = 0

@@ -199,7 +199,7 @@ class CraterBuilder:
         # Creates a padded DEM and mask
         dem_size = int(self.settings.block_size / self.settings.resolution)
         pad_size = int(self.settings.pad_size / self.settings.resolution)
-        DEM_padded = np.zeros((pad_size * 2 + dem_size, pad_size * 2 + dem_size))
+        DEM_padded = np.zeros((pad_size * 2 + dem_size, pad_size * 2 + dem_size), dtype=np.float32)
         coords_np = np.array(coords)
         # Adds the craters to the DEM
         for crater_data in craters_data:
@@ -215,7 +215,8 @@ class CraterBuilder:
                 coord_offset[1] : coord_offset[1] + size,
             ] += c
 
-        return DEM_padded[pad_size:-pad_size, pad_size:-pad_size]
+        core = DEM_padded[pad_size:-pad_size, pad_size:-pad_size]
+        return np.ascontiguousarray(core)
 
 
 if __name__ == "__main__":

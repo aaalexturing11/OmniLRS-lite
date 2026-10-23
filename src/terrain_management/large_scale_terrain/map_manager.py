@@ -12,6 +12,7 @@ from typing import Tuple
 import numpy as np
 import yaml
 
+from src.terrain_management.array_utils import load_transposed_elevation
 from src.terrain_management.large_scale_terrain.high_resolution_DEM_generator import (
     HighResDEMGen,
     HighResDEMGenConf,
@@ -81,8 +82,7 @@ class MapManager:
         self.fetch_pregenerated_lr_dems()
 
     def load(self, path: str) -> np.ndarray:
-        map = np.load(path)
-        return np.flip(map.T, axis=1)
+        return load_transposed_elevation(path)
 
     def fetch_pregenerated_lr_dems(self) -> None:
         """

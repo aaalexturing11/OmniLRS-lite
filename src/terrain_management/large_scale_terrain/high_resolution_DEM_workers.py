@@ -133,20 +133,17 @@ class CPUInterpolator(Interpolator):
             np.ndarray: The interpolated terrain data.
         """
 
-        return cv2.resize(
+        resized = cv2.resize(
             data,
             (0, 0),
             fx=self.settings.fx,
             fy=self.settings.fy,
             interpolation=self.settings.method,
-        )[
-            int(self.settings.source_padding * self.settings.fx) : -int(
-                self.settings.source_padding * self.settings.fy
-            ),
-            int(self.settings.source_padding * self.settings.fx) : -int(
-                self.settings.source_padding * self.settings.fy
-            ),
-        ]
+        )
+        start = int(self.settings.source_padding * self.settings.fx)
+        stop = int(self.settings.source_padding * self.settings.fy)
+        cropped = resized[start:-stop, start:-stop]
+        return np.ascontiguousarray(cropped, dtype=np.float32)
 
 
 class CPUInterpolator_PIL(Interpolator):
@@ -183,14 +180,11 @@ class CPUInterpolator_PIL(Interpolator):
             (int(data.shape[1] * self.settings.fx), int(data.shape[0] * self.settings.fy)),
             resample=self.settings.method,
         )
-        return np.array(image)[
-            int(self.settings.source_padding * self.settings.fx) : -int(
-                self.settings.source_padding * self.settings.fy
-            ),
-            int(self.settings.source_padding * self.settings.fx) : -int(
-                self.settings.source_padding * self.settings.fy
-            ),
-        ]
+        resized = np.array(image)
+        start = int(self.settings.source_padding * self.settings.fx)
+        stop = int(self.settings.source_padding * self.settings.fy)
+        cropped = resized[start:-stop, start:-stop]
+        return np.ascontiguousarray(cropped, dtype=np.float32)
 
 
 class BaseWorker(multiprocessing.Process):

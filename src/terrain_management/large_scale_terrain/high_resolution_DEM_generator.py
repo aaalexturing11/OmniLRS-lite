@@ -12,6 +12,7 @@ from typing import List, Tuple
 
 import numpy as np
 
+from src.terrain_management.array_utils import as_float32_block
 from src.terrain_management.large_scale_terrain.crater_distribution import (
     CraterSampler,
     CraterSamplerConf,
@@ -22,6 +23,7 @@ from src.terrain_management.large_scale_terrain.crater_generation import (
     CraterDB,
     CraterDBConf,
 )
+from src.terrain_management.large_scale_terrain.dem_shift import shift_heightfield
 from src.terrain_management.large_scale_terrain.high_resolution_DEM_workers import (
     BicubicInterpolatorManager,
     CPUInterpolator_PIL,
@@ -364,56 +366,8 @@ class HighResDEMGen:
                 DEM in the pixel coordinate space.
         """
 
-        # TODO (antoine.richard / JAOPS): This function is not optimal and could be improved.
-        # Check if a np.roll function could be used to shift the DEM. This would be faster
-        # than copying the data. I would then have to set the shifted values to 0.
-
         x_shift, y_shift = pixel_shift
-        if x_shift > self.high_res_dem.shape[0] or y_shift > self.high_res_dem.shape[1]:
-            # If the shift is larger than the DEM, reset the DEM
-            self.high_res_dem[:, :] = 0
-        else:
-            # Shift the DEM
-            if x_shift > 0:
-                x_min_s = 0
-                x_max_s = -x_shift
-                x_min_t = x_shift
-                x_max_t = self.high_res_dem.shape[0]
-            elif x_shift == 0:
-                x_min_s = 0
-                x_max_s = self.high_res_dem.shape[0]
-                x_min_t = 0
-                x_max_t = self.high_res_dem.shape[0]
-            else:
-                x_min_s = -x_shift
-                x_max_s = self.high_res_dem.shape[0]
-                x_min_t = 0
-                x_max_t = x_shift
-            if y_shift > 0:
-                y_min_s = 0
-                y_max_s = -y_shift
-                y_min_t = y_shift
-                y_max_t = self.high_res_dem.shape[1]
-            elif y_shift == 0:
-                y_min_s = 0
-                y_max_s = self.high_res_dem.shape[1]
-                y_min_t = 0
-                y_max_t = self.high_res_dem.shape[1]
-            else:
-                y_min_s = -y_shift
-                y_max_s = self.high_res_dem.shape[1]
-                y_min_t = 0
-                y_max_t = y_shift
-            # Copy the data
-            self.high_res_dem[x_min_t:x_max_t, y_min_t:y_max_t] = self.high_res_dem[x_min_s:x_max_s, y_min_s:y_max_s]
-            if x_shift < 0:
-                self.high_res_dem[x_max_t:, :] = 0
-            elif x_shift > 0:
-                self.high_res_dem[:x_min_t, :] = 0
-            if y_shift < 0:
-                self.high_res_dem[:, y_max_t:] = 0
-            elif y_shift > 0:
-                self.high_res_dem[:, :y_min_t] = 0
+        shift_heightfield(self.high_res_dem, x_shift, y_shift)
 
     def shift(self, coordinates: Tuple[float, float]) -> None:
         """
@@ -707,7 +661,7 @@ class HighResDEMGen:
             int(coordinates[0] / self.settings.source_resolution + self.lr_dem_px_offset[0]),
             int(coordinates[1] / self.settings.source_resolution + self.lr_dem_px_offset[1]),
         )
-        return self.low_res_dem[
+        patch = self.low_res_dem[
             lr_dem_coordinates[0] - self.settings.interpolation_padding : lr_dem_coordinates[0]
             + self.lr_dem_block_size
             + self.settings.interpolation_padding,
@@ -715,6 +669,8 @@ class HighResDEMGen:
             + self.lr_dem_block_size
             + self.settings.interpolation_padding,
         ]
+        # Own the patch. A view would pin the whole low-resolution DEM in the worker queue.
+        return as_float32_block(patch)
 
     def get_coordinates(self, coordinates: Tuple[float, float]) -> Tuple[float, float]:
         """

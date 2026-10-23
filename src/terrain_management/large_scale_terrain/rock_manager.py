@@ -28,6 +28,10 @@ from src.terrain_management.large_scale_terrain.utils import BoundingBox, RockBl
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
 
+# Prototypes with the same asset and the same collider/material/label are composed once
+# and targeted by every point instancer that needs them.
+_SHARED_PROTOTYPES: dict = {}
+
 
 class Instancer:
     """
@@ -116,18 +120,37 @@ class Instancer:
 
         prim_paths = []
         for i, file_path in enumerate(self.file_paths):
-            prim = self.stage.DefinePrim(os.path.join(self.instancer_path, "asset_" + str(i)), "Xform")
-            prim.GetReferences().AddReference(file_path)
-            if self.add_colliders:
-                add_collider(self.stage, prim.GetPath(), mode=self.collider_mode)
-            if self.apply_material:
-                bind_material(self.stage, self.material_path, prim.GetPath())
-            if self.add_semantic_label:
-                self.apply_semantic_label(prim.GetPath())
-
-            prim_paths.append(prim.GetPath())
+            prim_paths.append(self._acquire_prototype(file_path, i))
 
         self.instancer.GetPrototypesRel().SetTargets(prim_paths)
+
+    def _acquire_prototype(self, file_path: str, index: int):
+        """Return a prototype prim, composing each distinct asset only once."""
+
+        material = self.material_path if self.apply_material else None
+        label = self.semantic_label if self.add_semantic_label else None
+        key = (
+            os.path.normcase(os.path.abspath(file_path)),
+            bool(self.add_colliders),
+            self.collider_mode,
+            material,
+            label,
+        )
+        cached = _SHARED_PROTOTYPES.get(key)
+        if cached is not None and self.stage.GetPrimAtPath(cached).IsValid():
+            return cached
+
+        prim = self.stage.DefinePrim(os.path.join(self.instancer_path, "asset_" + str(index)), "Xform")
+        prim.GetReferences().AddReference(file_path)
+        if self.add_colliders:
+            add_collider(self.stage, prim.GetPath(), mode=self.collider_mode)
+        if self.apply_material:
+            bind_material(self.stage, self.material_path, prim.GetPath())
+        if self.add_semantic_label:
+            self.apply_semantic_label(prim.GetPath())
+        path = prim.GetPath()
+        _SHARED_PROTOTYPES[key] = path
+        return path
 
         self.set_instancer_parameters(
             np.array([[0, 0, 0]]), np.array([[0, 0, 0, 1]]), np.array([[1, 1, 1]]), np.array([0])

@@ -8,11 +8,13 @@ def startSim(cfg: dict):
     from isaacsim import SimulationApp
 
     from src.environments.rendering import (
+        apply_memory_runtime,
         set_chromatic_aberrations,
         set_lens_flares,
         set_motion_blur,
         set_tbn_frame_mode,
     )
+    from src.runtime.memory_budget import log_process_memory, release_unused_memory
 
     class SimulationApp_wait(SimulationApp):
         def __init__(self, launch_config: dict = None, experience: str = "") -> None:
@@ -92,11 +94,19 @@ def startSim(cfg: dict):
     renderer_cfg = cfg["rendering"]["renderer"]
     launch_config = renderer_cfg.__dict__.copy()
     tbn_frame_mode = launch_config.pop("tbn_frame_mode")
+    width = launch_config.pop("width", None)
+    height = launch_config.pop("height", None)
+    if width:
+        launch_config["width"] = int(width)
+    if height:
+        launch_config["height"] = int(height)
+    log_process_memory("before SimulationApp")
     simulation_app = SimulationApp_wait(launch_config)
     set_tbn_frame_mode(tbn_frame_mode)
     set_lens_flares(cfg)
     set_motion_blur(cfg)
     set_chromatic_aberrations(cfg)
+    apply_memory_runtime(cfg.get("_memory"))
 
     # NOTE mode is chosen by setting the value of "mode" property within "defaults" @cfg/config.yaml
     # it can also be overwritten through console, same as environment
@@ -144,4 +154,6 @@ def startSim(cfg: dict):
 
         SM = SDG_SimulationManager(cfg, simulation_app)
 
+    release_unused_memory()
+    log_process_memory("after scene construction")
     return SM, simulation_app
