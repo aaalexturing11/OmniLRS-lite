@@ -17,6 +17,7 @@ else
 fi
 
 "${ISAAC_PY}" -m pip install --upgrade-strategy only-if-needed \
+    "coverage>=7.6.1" \
     omegaconf \
     hydra-core \
     skyfield \

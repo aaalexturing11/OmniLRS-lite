@@ -22,6 +22,7 @@ def test_docker_image_is_official_isaac_sim_62():
     assert "numpy==" not in dockerfile
     assert "isaacsim.ros2.bridge/humble/lib" not in dockerfile
     assert "/isaac-sim/python.sh" in dockerfile
+    assert "coverage>=7.6.1" in dockerfile
 
 
 def test_docker_entrypoint_does_not_force_system_ros():

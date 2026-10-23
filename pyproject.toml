@@ -12,6 +12,8 @@ authors = [
 dependencies = [
     "skyfield",
     "zfpy",
+    # Numba 0.62 imports coverage.types.Tracer. Coverage 7.6.1 is the first release that defines it.
+    "coverage>=7.6.1",
     "numba",
     "gdown",
     "gdal",

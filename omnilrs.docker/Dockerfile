@@ -58,7 +58,10 @@ RUN . /etc/os-release && \
     rm -rf /var/lib/apt/lists/*
 
 # only-if-needed refuses to downgrade Isaac Sim's NumPy, Warp, or CUDA wheels.
+# coverage>=7.6.1 supplies coverage.types.Tracer. Numba 0.62 subclasses it
+# at import time and crashes on the older coverage shipped with Isaac Sim.
 RUN /isaac-sim/python.sh -m pip install --upgrade-strategy only-if-needed \
+        "coverage>=7.6.1" \
         omegaconf \
         hydra-core \
         skyfield \
